@@ -42,3 +42,16 @@
 - [ ] 本周新增能力：
 - [ ] 本周失败案例与根因：
 - [ ] 下周优先级 Top 3：
+
+## 6) 本周复盘（2026-03-14）
+
+- [x] 本周新增能力：
+	- 区分了工具增强 LLM 与完整 Agent（状态 + 决策循环 + 工具执行闭环）
+	- 梳理了 AutoGen 组件边界（AgentChat / Ext / Studio）
+	- 明确了国内可行模型路径：OpenAI-compatible 接 NVIDIA API
+	- 明确下一步实施路径：单 Agent 最小闭环 → Skill → MCP
+- [x] 本周学习里程碑：`papers/LLM-Agent.pdf` 已阅读至第 3 章
+- [x] 下周优先级 Top 3：
+	- 完成 AutoGen 最小单 Agent Demo
+	- 增加 1 个本地 Skill 并验证工具调用链路
+	- 评估并接入高德 MCP Server 的最小场景（路线/吃饭/游览）

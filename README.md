@@ -67,6 +67,11 @@
 - ✅ 已完成一个 `Manager + 4 Workers` 的多 Agent 基础框架（LangGraph 编排）
 - ✅ 已跑通基础工具链路：读文件 / 写文件 / 编辑文件 / 执行命令
 - ✅ 已开始沉淀资料：新增 Anthropic《Building Effective AI Agents》
+- ✅ 明确区分：`工具增强 LLM` ≠ `完整 Agent`（关键差异是自主决策循环与状态管理）
+- ✅ 梳理 AutoGen 组件关系：`autogen-agentchat`（框架核心） + `autogen-ext`（模型/MCP扩展） + `autogenstudio`（可选 GUI）
+- ✅ 确认技术路线：优先从 AutoGen 最小单 Agent 闭环入手，再逐步接入高德 MCP
+- ✅ 明确模型接入策略：可使用 OpenAI-compatible 方式接 NVIDIA API，不强依赖 OpenAI 官方 API
+- ✅ 文献学习进度：`papers/LLM-Agent.pdf` 已学习至第 3 章
 - 🔄 下一步将围绕开源项目 `AutoGen` 做对照实践，重点关注：
    - 可观测（日志、追踪、指标）
    - 可控制（权限边界、策略约束、人工干预）
