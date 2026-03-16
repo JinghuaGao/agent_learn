@@ -19,6 +19,7 @@
 ## 仓库内容
 
 - [agents.py](agents.py)：当前的多 Agent 协作示例（Manager + 4 Workers）
+- [agent_replace_rag.py](agent_replace_rag.py)：单 Agent + PDF 标题工具（AutoGen 最小 Demo）
 - [papers/](papers/)：阅读与沉淀 Agent 相关论文/资料
 
 ## 当前系统简介
@@ -51,6 +52,17 @@
 ### 3) 运行
 
 直接执行 `agents.py`。
+
+### 4) 单 Agent + PDF 标题工具（AutoGen 最小 Demo）
+
+安装依赖（示例）：
+
+- `pyautogen`
+- `pypdf`
+
+执行：
+
+- `python agent_replace_rag.py --pdf-dir ./papers`
 
 ## 学习路线（持续更新）
 
