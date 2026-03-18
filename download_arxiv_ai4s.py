@@ -22,14 +22,31 @@ ARXIV_API = "https://export.arxiv.org/api/query"
 NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 
-def build_query() -> str:
-    # 关键词可按你的研究方向继续扩展
-    terms = [
-        'all:"ai for science"',
-        'all:"machine learning for science"',
-        'all:"scientific discovery" AND all:"machine learning"',
-        'all:"foundation model" AND all:"science"',
-    ]
+def build_query(preset: str = "ai4s") -> str:
+    """按预设主题构建 arXiv 查询语句。"""
+    preset = (preset or "ai4s").strip().lower()
+
+    if preset in {"rag", "agent", "rag_agent", "rag-agent"}:
+        # RAG / Agent 方向：兼顾综述与发展方向（challenge/future/trend）
+        terms = [
+            'all:"retrieval augmented generation"',
+            'all:"retrieval-augmented generation"',
+            'all:"RAG" AND all:"large language model"',
+            'all:"RAG" AND (all:"survey" OR all:"review" OR all:"benchmark" OR all:"challenge" OR all:"future")',
+            '(all:"llm agent" OR all:"language agent" OR all:"agentic") AND (all:"survey" OR all:"review" OR all:"overview")',
+            '(all:"autonomous agent" OR all:"multi-agent" OR all:"tool use") AND (all:"large language model" OR all:"foundation model")',
+            '(all:"agent" AND all:"planning") AND (all:"large language model" OR all:"reasoning")',
+            '(all:"agent" AND all:"future" AND all:"large language model")',
+        ]
+    else:
+        # 默认：AI for Science
+        terms = [
+            'all:"ai for science"',
+            'all:"machine learning for science"',
+            'all:"scientific discovery" AND all:"machine learning"',
+            'all:"foundation model" AND all:"science"',
+        ]
+
     return " OR ".join(f"({t})" for t in terms)
 
 
@@ -104,12 +121,25 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=100, help="每次 API 拉取条数")
     parser.add_argument("--out-dir", type=str, default="./refer_docs/ai4science", help="PDF 输出目录")
     parser.add_argument("--sleep", type=float, default=1.5, help="每次下载之间的间隔秒数")
+    parser.add_argument(
+        "--preset",
+        type=str,
+        default="ai4s",
+        choices=["ai4s", "rag_agent"],
+        help="查询主题预设：ai4s 或 rag_agent",
+    )
+    parser.add_argument(
+        "--search-query",
+        type=str,
+        default="",
+        help="自定义 arXiv 查询语句（若提供，将覆盖 --preset）",
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    query = build_query()
+    query = args.search_query.strip() or build_query(args.preset)
     print(f"[INFO] Query: {query}")
 
     all_entries: List[Dict] = []

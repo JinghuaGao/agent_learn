@@ -6,10 +6,13 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from tools import (
+    docling_read_pdf,
     fs_edit_json,
     fs_list_tree,
     fs_pwd,
     fs_read,
+    metadata_check_freshness,
+    metadata_retrieve_top_docs,
     pdf_search,
 )
 
@@ -18,7 +21,7 @@ def create_model_client() -> OpenAIChatCompletionClient:
     # 支持两种模型端：
     # 1) 本地自部署 Qwen（无 key）
     # 2) NVIDIA/OpenAI-compatible（有 key）
-    use_local_model = os.getenv("USE_LOCAL_MODEL", "1") == "1"
+    use_local_model = os.getenv("USE_LOCAL_MODEL", "0") == "1"
 
     if use_local_model:
         # 你给的地址是 chat/completions 终端。
@@ -94,22 +97,36 @@ async def main() -> None:
             fs_list_tree,
             fs_read,
             fs_edit_json,
+            metadata_check_freshness,
+            metadata_retrieve_top_docs,
+            docling_read_pdf,
             pdf_search,
         ],
         system_message=(
-            "你是科研论文助理。"
-            "你拥有最小化工具集：fs_pwd / fs_list_tree / fs_read / pdf_search / fs_edit_json。"
+            "你是科研论文助理。你可以通过参考资料目录中的文件来回答用户的问题。"
             "默认资料目录是 /Users/jiean/agent_learn/refer_docs/。"
+            "默认元数据是 /Users/jiean/agent_learn/refer_docs/pdf_metadata_index.json, 包含了每个 PDF 的路径、页数、主要内容等。"
+            "你拥有最小化工具集:fs_pwd / fs_list_tree / fs_read / metadata_check_freshness / metadata_retrieve_top_docs / docling_read_pdf / pdf_search / fs_edit_json。"
+
             ""
-            "工作流程（第一性原理）："
-            "1) 先确认当前路径：fs_pwd；再用 fs_list_tree 查目录结构。"
-            "2) 再读文件内容：文本/JSON 用 fs_read；PDF 用 fs_read 或 pdf_search。"
-            "3) 需要安全修改 JSON 时，使用 fs_edit_json(file_path, key_path, value_json)。"
-            "4) 用户提问论文问题时：先用 pdf_search 找证据页，再给结论和页码。"
-            "5) 证据不足时明确说明，不要编造。"
-            "6) 只能通过真实工具调用，不要输出伪 <tool_call> 文本。"
+            "工作流程（必须遵守）："
+            "1) 先确认目录与元数据可用（必要时调用 fs_pwd/fs_list_tree/fs_read）。"
+            "2) 若怀疑元数据过期，先调用 metadata_check_freshness 判断是否最新。"
+            "3) 回答论文问题前，必须先调用 metadata_retrieve_top_docs(query, max_docs<=3) 做文档级筛选。"
+            "4) 只在筛出的最多 3 篇文档中继续阅读，优先使用 docling_read_pdf；必要时再用 pdf_search 做页级证据定位。"
+            "5) 需要安全修改 JSON 时，使用 fs_edit_json(file_path, key_path, value_json)。"
+            "6) 证据不足时明确说明，不要编造。"
+            "7) 只能通过真实工具调用，不要输出伪 <tool_call> 文本。"
+            "8) 若已经有足够证据，请停止继续调用工具并直接输出最终答案。"
+            "9) 最终答案必须按以下固定结构输出："
+            "【结论】...\n"
+            "【证据】按要点列出，每条包含来源文件名与页码/位置\n"
+            "【不确定性】信息缺口与置信度说明\n"
+            "【后续建议】如需补充检索，给出下一步。"
+            "10) 若没有找到有效证据，必须输出“证据不足”，并说明已尝试的检索范围。"
         ),
         reflect_on_tool_use=True,
+        max_tool_iterations=5,  # 允许单 Agent 在一次任务中进行多轮工具调用
         model_client_stream=True,  # Enable streaming tokens from the model client.
     )
 
