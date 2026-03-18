@@ -13,6 +13,7 @@ except Exception:
 
 DEFAULT_REFER_DOCS = "/Users/jiean/agent_learn/refer_docs"
 DEFAULT_METADATA_INDEX = f"{DEFAULT_REFER_DOCS}/pdf_metadata_index.json"
+DEFAULT_PREVIEW_SCORE_CHARS = 2400
 
 
 def _safe_resolve(path_str: str) -> Path:
@@ -346,6 +347,7 @@ async def metadata_retrieve_top_docs(
         file_name = str(item.get("file_name", "")).strip()
         abstract = str(item.get("abstract", "")).strip()
         preview = str(item.get("preview_text", "")).strip()
+        preview_for_score = preview[:DEFAULT_PREVIEW_SCORE_CHARS]
         keywords = item.get("keywords", [])
         if not isinstance(keywords, list):
             keywords = []
@@ -356,7 +358,7 @@ async def metadata_retrieve_top_docs(
                 file_path,
                 abstract,
                 " ".join(str(k) for k in keywords),
-                preview,
+                preview_for_score,
             ]
         )
         score = _score_page(corpus, query_tokens)
@@ -404,6 +406,120 @@ async def metadata_retrieve_top_docs(
         if doc.get("preview_text"):
             lines.append(f"preview: {_snippet(doc['preview_text'])}")
         lines.append("")
+    return "\n".join(lines).strip()
+
+
+async def metadata_compact_previews(
+    metadata_path: str = DEFAULT_METADATA_INDEX,
+    max_preview_chars: int = 1600,
+    dry_run: bool = False,
+    backup: bool = True,
+) -> str:
+    """
+    Tool API: metadata_compact_previews
+
+    功能:
+    - 批量压缩 metadata 中每个条目的 preview_text，防止索引文件随文档数增长而过大。
+
+    参数:
+    - metadata_path (str, optional): 元数据 JSON 路径。默认 pdf_metadata_index.json。
+    - max_preview_chars (int, optional): 每条 preview_text 允许保留的最大字符数。默认 1600。
+    - dry_run (bool, optional): True 时仅预估不落盘。默认 False。
+    - backup (bool, optional): 写回前是否生成 .bak 备份文件。默认 True。
+
+    返回:
+    - str: 压缩统计信息，包含:
+      - items_total / changed_items
+      - total_preview_chars_before / after
+      - estimated_saved_chars
+      - metadata_size_before / after（字节）
+      - dry_run 状态与下一步建议
+
+    示例:
+    - 输入: metadata_compact_previews(max_preview_chars=1200, dry_run=True)
+    - 输出: "changed_items: 120\nestimated_saved_chars: 890000\n..."
+
+    备注:
+    - 该工具不会改动 abstract/keywords/file_sig 等字段。
+    - 若需要全文证据，请使用 docling_read_pdf 或 pdf_search，而不是依赖超长 preview_text。
+    """
+    meta_p = _safe_resolve(metadata_path)
+    if not meta_p.exists() or meta_p.suffix.lower() != ".json":
+        return f"无效 metadata JSON 路径: {meta_p}"
+
+    cap = max(200, int(max_preview_chars))
+
+    try:
+        payload = json.loads(meta_p.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return f"metadata 解析失败: {meta_p.name} -> {exc}"
+
+    raw_items = payload.get("items", {})
+    if not isinstance(raw_items, dict):
+        return "metadata.items 格式异常：预期为对象(dict)。"
+
+    size_before = meta_p.stat().st_size
+    total_before = 0
+    total_after = 0
+    changed_items = 0
+
+    suffix = "\n...(truncated in metadata; use docling_read_pdf/pdf_search for full content)..."
+    suffix_len = len(suffix)
+
+    for _, meta in raw_items.items():
+        if not isinstance(meta, dict):
+            continue
+        preview = str(meta.get("preview_text", ""))
+        n = len(preview)
+        total_before += n
+
+        if n <= cap:
+            total_after += n
+            continue
+
+        keep = max(0, cap - suffix_len)
+        compacted = preview[:keep] + suffix
+        meta["preview_text"] = compacted
+        total_after += len(compacted)
+        changed_items += 1
+
+    items_total = sum(1 for v in raw_items.values() if isinstance(v, dict))
+    saved_chars = max(0, total_before - total_after)
+
+    if not dry_run and changed_items > 0:
+        try:
+            if backup:
+                bak = meta_p.with_suffix(meta_p.suffix + ".bak")
+                bak.write_text(meta_p.read_text(encoding="utf-8"), encoding="utf-8")
+
+            payload["updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+            tmp = meta_p.with_suffix(meta_p.suffix + ".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(meta_p)
+        except Exception as exc:
+            return f"metadata 写回失败: {meta_p.name} -> {exc}"
+
+    size_after = meta_p.stat().st_size if meta_p.exists() else size_before
+
+    lines = [
+        f"metadata_path: {meta_p}",
+        f"dry_run: {'true' if dry_run else 'false'}",
+        f"max_preview_chars: {cap}",
+        f"items_total: {items_total}",
+        f"changed_items: {changed_items}",
+        f"total_preview_chars_before: {total_before}",
+        f"total_preview_chars_after: {total_after}",
+        f"estimated_saved_chars: {saved_chars}",
+        f"metadata_size_before_bytes: {size_before}",
+        f"metadata_size_after_bytes: {size_after}",
+    ]
+
+    if dry_run:
+        lines.append("建议: 若结果可接受，设置 dry_run=false 执行落盘。")
+    else:
+        lines.append("建议: 压缩后继续通过 metadata_retrieve_top_docs + docling_read_pdf/pdf_search 完成检索与取证。")
+
     return "\n".join(lines).strip()
 
 

@@ -12,6 +12,7 @@ from tools import (
     fs_pwd,
     fs_read,
     metadata_check_freshness,
+    metadata_compact_previews,
     metadata_retrieve_top_docs,
     pdf_search,
 )
@@ -98,6 +99,7 @@ async def main() -> None:
             fs_read,
             fs_edit_json,
             metadata_check_freshness,
+            metadata_compact_previews,
             metadata_retrieve_top_docs,
             docling_read_pdf,
             pdf_search,
@@ -106,12 +108,13 @@ async def main() -> None:
             "你是科研论文助理。你可以通过参考资料目录中的文件来回答用户的问题。"
             "默认资料目录是 /Users/jiean/agent_learn/refer_docs/。"
             "默认元数据是 /Users/jiean/agent_learn/refer_docs/pdf_metadata_index.json, 包含了每个 PDF 的路径、页数、主要内容等。"
-            "你拥有最小化工具集:fs_pwd / fs_list_tree / fs_read / metadata_check_freshness / metadata_retrieve_top_docs / docling_read_pdf / pdf_search / fs_edit_json。"
+            "你拥有最小化工具集:fs_pwd / fs_list_tree / fs_read / metadata_check_freshness / metadata_compact_previews / metadata_retrieve_top_docs / docling_read_pdf / pdf_search / fs_edit_json。"
 
             ""
             "工作流程（必须遵守）："
             "1) 先确认目录与元数据可用（必要时调用 fs_pwd/fs_list_tree/fs_read）。"
             "2) 若怀疑元数据过期，先调用 metadata_check_freshness 判断是否最新。"
+            "2.1) 若 metadata 过大或 preview_text 过长，先调用 metadata_compact_previews 压缩索引，再继续检索。"
             "3) 回答论文问题前，必须先调用 metadata_retrieve_top_docs(query, max_docs<=3) 做文档级筛选。"
             "4) 只在筛出的最多 3 篇文档中继续阅读，优先使用 docling_read_pdf；必要时再用 pdf_search 做页级证据定位。"
             "5) 需要安全修改 JSON 时，使用 fs_edit_json(file_path, key_path, value_json)。"

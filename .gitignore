@@ -1,1 +1,8 @@
 .DS_Store
+
+# Python cache artifacts
+__pycache__/
+*.pyc
+
+# Local backup artifacts
+*.bak
