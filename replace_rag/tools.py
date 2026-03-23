@@ -1,9 +1,11 @@
 import json
 import os
 import re
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
+from xml.etree import ElementTree as ET
 
 try:
     from pypdf import PdfReader
@@ -832,3 +834,105 @@ async def pdf_search(file_path: str, query: str, top_k: int = 3) -> str:
         lines.append(snippet)
         lines.append("")
     return "\n".join(lines).strip()
+
+
+async def pptx_read(
+    file_path: str,
+    max_slides: int = 20,
+    max_chars: int = 20000,
+    include_notes: bool = False,
+) -> str:
+    """
+    Tool API: pptx_read
+
+    功能:
+    - 读取 .pptx 幻灯片文本（标题/正文），可选读取备注（notes）。
+
+    参数:
+    - file_path (str): .pptx 文件路径。
+    - max_slides (int, optional): 最多读取的幻灯片数量。默认 20。
+    - max_chars (int, optional): 最大返回字符数。默认 20000。
+    - include_notes (bool, optional): 是否读取备注页文本。默认 False。
+
+    返回:
+    - str:
+        - 成功: 包含 slide-by-slide 文本
+        - 失败: 错误信息（路径/格式/解析失败）
+
+    备注:
+    - 当前仅支持 .pptx（Office Open XML）。不支持老格式 .ppt。
+    """
+    p = _safe_resolve(file_path)
+    if not p.exists() or not p.is_file():
+        return f"文件不存在: {p}"
+    if p.suffix.lower() != ".pptx":
+        if p.suffix.lower() == ".ppt":
+            return "当前仅支持 .pptx；.ppt 需先转换为 .pptx。"
+        return f"无效 PPTX 路径: {p}"
+
+    max_slides = max(1, int(max_slides))
+
+    def _extract_texts(xml_bytes: bytes) -> List[str]:
+        try:
+            root = ET.fromstring(xml_bytes)
+        except Exception:
+            return []
+        # PPTX 文本常见在 DrawingML 的 <a:t> 节点
+        texts = []
+        for node in root.iter():
+            if node.tag.endswith("}t") and node.text:
+                txt = re.sub(r"\s+", " ", node.text).strip()
+                if txt:
+                    texts.append(txt)
+        return texts
+
+    try:
+        with zipfile.ZipFile(p, "r") as zf:
+            slide_names = [
+                n for n in zf.namelist()
+                if n.startswith("ppt/slides/slide") and n.endswith(".xml")
+            ]
+            # 按数字排序 slide1, slide2, ...
+            slide_names.sort(key=lambda n: int(re.search(r"slide(\d+)\.xml$", n).group(1)) if re.search(r"slide(\d+)\.xml$", n) else 10**9)
+
+            if not slide_names:
+                return f"未检测到幻灯片内容: {p.name}"
+
+            selected = slide_names[:max_slides]
+            lines: List[str] = [
+                f"file={p.name}",
+                "method=pptx_xml",
+                f"slides={len(selected)}/{len(slide_names)}",
+                "---",
+            ]
+
+            for s_name in selected:
+                m = re.search(r"slide(\d+)\.xml$", s_name)
+                slide_no = int(m.group(1)) if m else -1
+                body = zf.read(s_name)
+                texts = _extract_texts(body)
+
+                lines.append(f"\n[Slide {slide_no}]")
+                if texts:
+                    for t in texts:
+                        lines.append(f"- {t}")
+                else:
+                    lines.append("(empty)")
+
+                if include_notes:
+                    note_name = f"ppt/notesSlides/notesSlide{slide_no}.xml"
+                    if note_name in zf.namelist():
+                        note_texts = _extract_texts(zf.read(note_name))
+                        if note_texts:
+                            lines.append("[Notes]")
+                            for t in note_texts:
+                                lines.append(f"- {t}")
+
+            out = "\n".join(lines).strip()
+            if len(out) > max_chars:
+                out = out[:max_chars] + "\n...(truncated)..."
+            return out
+    except zipfile.BadZipFile:
+        return f"文件不是合法的 .pptx 压缩包: {p.name}"
+    except Exception as exc:
+        return f"PPTX 读取失败: {p.name} -> {exc}"

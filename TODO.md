@@ -55,3 +55,16 @@
 	- 完成 AutoGen 最小单 Agent Demo
 	- 增加 1 个本地 Skill 并验证工具调用链路
 	- 评估并接入高德 MCP Server 的最小场景（路线/吃饭/游览）
+
+## 7) 明日学习计划（2026-03-19）
+
+- [ ] 学习 RAG 评估框架 Ragas：核心指标（faithfulness、answer relevancy、context precision/recall）
+- [ ] 学习 TruLens：反馈函数（Feedback Functions）、记录与可视化（Traces/Leaderboard）
+- [ ] 各跑通 1 个最小示例（同一份问答数据）
+- [ ] 对比 Ragas vs TruLens：接入成本、指标覆盖、可观测性、与当前项目适配度
+- [ ] 输出结论到学习日志：下一步优先接入哪个框架及原因
+
+## 8) 本周工作重点（2026-03-19）
+
+- [x] 学习并搭建了一个 Agent（完成最小可运行闭环）
+- [x] 开始学习 Ragas（进入 RAG 评估体系）
