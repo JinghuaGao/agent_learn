@@ -125,6 +125,13 @@
    - 第二步：补充可观测日志（检索命中、时延、失败原因）。
    - 第三步：做回归评测与参数优化（top-k、prompt、模型参数）。
 
+6. **后续重点学习 TODO：优化 reranker**
+   - 把 reranker 作为后续深入 RAG 的核心切入点。
+   - 先理解“召回（recall）”与“重排（rerank）”的职责分工。
+   - 从简单规则版 rerank 过渡到模型版 rerank（如 `bge-reranker` / `cross-encoder`）。
+   - 重点比较：只增大 top-k vs 引入 reranker，哪种方式对最终回答质量提升更明显。
+   - 目标：围绕 reranker 逐步建立对检索质量优化、证据排序和 RAG 工程权衡的系统理解。
+
 ## 仓库愿景
 
 把这个仓库打造成一个可复用的 Agent 工程实践模板：
