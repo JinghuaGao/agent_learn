@@ -19,62 +19,25 @@ from tools import (
 )
 
 
+LLM_BASE_URL = os.getenv("LOCAL_BASE_URL", "http://121.37.90.146:1433/v1")
+LLM_MODEL = os.getenv("LOCAL_MODEL", "Qwen3.5-35B-A3B")
+LLM_API_KEY = os.getenv("LOCAL_API_KEY", "EMPTY")
+
+
 def create_model_client() -> OpenAIChatCompletionClient:
-    # 支持两种模型端：
-    # 1) 本地自部署 Qwen（无 key）
-    # 2) NVIDIA/OpenAI-compatible（有 key）
-    use_local_model = os.getenv("USE_LOCAL_MODEL", "1") == "1"
-
-    if use_local_model:
-        # 你给的地址是 chat/completions 终端。
-        # OpenAI-compatible client 的 base_url 需要填到 /v1。
-        local_base_url = os.getenv("LOCAL_BASE_URL", "http://121.37.90.146:55803/v1")
-        local_model = os.getenv("LOCAL_MODEL", "qwen3-32b")
-
-        return OpenAIChatCompletionClient(
-            model=local_model,
-            api_key=os.getenv("LOCAL_API_KEY", "EMPTY"),
-            base_url=local_base_url,
-            temperature=float(os.getenv("MODEL_TEMPERATURE", "0.1")),
-            top_p=float(os.getenv("MODEL_TOP_P", "0.95")),
-            max_tokens=int(os.getenv("MODEL_MAX_TOKENS", "20480")),
-            model_info={
-                "vision": False,
-                "function_calling": True,
-                "json_output": True,
-                "structured_output": False,
-                "family": "unknown",
-            },
-        )
-
-    # 统一从环境变量读取密钥：避免硬编码，便于安全轮换
-    api_key = (
-        os.getenv("NV_API_KEY")
-        or os.getenv("NVIDIA_API_KEY")
-        or os.getenv("OPENAI_API_KEY")
-    )
-
-    if not api_key:
-        raise RuntimeError("缺少 API Key。请设置 NVIDIA_API_KEY（或 NV_API_KEY）。")
-
-    # 使用 OpenAI-compatible 接口接入 NVIDIA 端点
-    # 如需切换供应商，只需改 base_url/model/KEY，不改 Agent 逻辑
-    base_url = os.getenv("OPENAI_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    model = os.getenv("OPENAI_MODEL", "minimaxai/minimax-m2.5")
-
-    # 生成参数可通过环境变量覆盖，便于实验
-    temperature = float(os.getenv("MODEL_TEMPERATURE", "0.01"))
-    top_p = float(os.getenv("MODEL_TOP_P", "0.1"))
-    max_tokens = int(os.getenv("MODEL_MAX_TOKENS", "81920"))
+    # 这版 Agentic RAG 统一走本地 OpenAI-compatible 端点。
+    # 需要切换模型时，只改环境变量，不改 Agent 主逻辑。
+    temperature = float(os.getenv("MODEL_TEMPERATURE", "0.1"))
+    top_p = float(os.getenv("MODEL_TOP_P", "0.95"))
+    max_tokens = int(os.getenv("MODEL_MAX_TOKENS", "20480"))
 
     return OpenAIChatCompletionClient(
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
+        model=LLM_MODEL,
+        api_key=LLM_API_KEY,
+        base_url=LLM_BASE_URL,
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
-        # 非 OpenAI 官方模型必须显式声明 model_info
         model_info={
             "vision": False,
             "function_calling": True,
@@ -129,6 +92,7 @@ async def main() -> None:
             "【不确定性】信息缺口与置信度说明\n"
             "【后续建议】如需补充检索，给出下一步。"
             "10) 若没有找到有效证据，必须输出“证据不足”，并说明已尝试的检索范围。"
+            "11) metadata 只能通过工具修正单条字段，不能自动重建全量索引；如果发现目录过期或缺字段，要明确报告，不要假装已经更新完成。"
         ),
         reflect_on_tool_use=True,
         max_tool_iterations=5,  # 允许单 Agent 在一次任务中进行多轮工具调用

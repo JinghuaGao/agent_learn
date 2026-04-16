@@ -1,145 +1,113 @@
 # Agent Learn
 
-从零开始学习 Agent，到构造 Agent，再到提升 Agent。这个仓库是我的实战学习基地，目标是成为 **Agent 构造和维修大师**。
+这个仓库当前的主线不是泛泛地“学 Agent”，而是做一个真正会查资料的 Agentic RAG：
 
-## 我的目标
+- 让大模型自己去读 PDF、PPT，后面再扩展到图片
+- 让它先看“图书目录”式的 metadata，再决定读哪几份资料
+- 最后把它和经典 RAG 做对比，主要靠人的主观判断看谁更强
 
-我会沿着 3 个阶段持续进阶：
+Ragas 暂时不作为主线，先把系统跑顺、把差异看清楚。
 
-1. **了解 Agent**
-   - 理解 Agent 的核心概念：`状态`、`工具`、`规划`、`记忆`、`评估`
-   - 学会单 Agent 的基本工作流
-2. **构造 Agent**
-   - 构建可运行的多 Agent 系统（Manager + Workers）
-   - 让 Agent 可以读写文件、执行命令、完成端到端任务
-3. **提升 Agent**
-   - 提升稳定性、可观测性、可维护性
-   - 引入测试、日志、错误恢复与性能优化
+## 当前目标
 
-## 仓库内容
+1. **经典 RAG 基线**
+   - 先有一个稳定的“召回 → 拼上下文 → 直接回答”版本
+2. **Agentic RAG**
+   - 让 Agent 自己决定先看 metadata、再看正文、再补证据
+   - 支持 PDF / PPT，后续再接图片
+3. **元数据维护**
+   - 维护一个可用的文档目录，避免每次都把整个资料库读一遍
+4. **主观对比**
+   - 比较回答是否更准、更完整、更像“会查资料的人”
+   - 重点看证据质量、推理过程、稳定性和可控性
 
-- [agents.py](agents.py)：当前的多 Agent 协作示例（Manager + 4 Workers）
-- [agent_replace_rag.py](agent_replace_rag.py)：单 Agent + PDF 标题工具（AutoGen 最小 Demo）
-- [papers/](papers/)：阅读与沉淀 Agent 相关论文/资料
+## 代码地图
 
-## 当前系统简介
+- [replace_rag/agentic_rag.py](replace_rag/agentic_rag.py)：Agentic RAG 主入口
+- [replace_rag/tools.py](replace_rag/tools.py)：文件读取、目录检索、metadata 维护等工具
+- [replace_rag/pdf_metadata_index.json](replace_rag/pdf_metadata_index.json)：当前的文档目录
+- [evaluation/simple_milvus_rag_demo.py](evaluation/simple_milvus_rag_demo.py)：经典 RAG 对照组
+- [agents.py](agents.py)：另一个多 Agent 实验示例
+- [papers/](papers/)：学习资料
 
-`agents.py` 包含：
+## 现在这套系统怎么分工
 
-- `Manager Agent`：负责分解任务、决策下一步
-- `ReadAgent`：读取文件
-- `WriteAgent`：写入文件
-- `EditAgent`：编辑文件
-- `ExecAgent`：执行命令
+### 1) 经典 RAG
 
-系统基于 `LangGraph` 组织流程节点，形成 Manager 与 Worker 的循环协作。
+`evaluation/simple_milvus_rag_demo.py` 做的是基线版本：
 
-## 快速开始
+- 问题先转向量
+- 去 Milvus 召回相关 chunk
+- rerank 后拼上下文
+- 直接交给 LLM 回答
 
-### 1) 安装依赖（示例）
+它的价值不是“最强”，而是当对照组。
 
-根据代码中的导入，至少需要：
+### 2) Agentic RAG
 
-- `langgraph`
-- `langchain-core`
-- `langchain-nvidia-ai-endpoints`
+`replace_rag/agentic_rag.py` 做的是 Agentic 版本：
 
-### 2) 配置环境变量
+- 先检查 metadata 是否可用、是否过期
+- 再从文档目录里筛候选文档
+- 再读取 PDF / PPT 的具体内容
+- 证据够了就停，不够就继续找
 
-- `NV_API_KEY` 或 `NVIDIA_API_KEY`
-- 可选：`NVIDIA_MODEL`（默认 `meta/llama-3.1-70b-instruct`）
+它更像一个会查资料的人，而不是只会“向量检索 + 拼上下文”的机器。
 
-### 3) 运行
+### 3) 元数据目录
 
-直接执行 `agents.py`。
+`replace_rag/pdf_metadata_index.json` 相当于图书馆目录，但现在还是“半成品目录”：
 
-### 4) 单 Agent + PDF 标题工具（AutoGen 最小 Demo）
+- 很多条目的 `abstract` / `keywords` 还是空的
+- `status` 仍然偏原始导入态
+- `updated_at` 也未必反映最新状态
 
-安装依赖（示例）：
+所以现在的重点不是继续堆检索技巧，而是先把目录维护好。
 
-- `pyautogen`
-- `pypdf`
+## 目前已知问题
 
-执行：
+- Agent 现在能读资料，但**还没有真正完整的 metadata 自动更新/重建流程**
+- `fs_edit_json` 只能改单个 JSON 字段，不适合做全量目录重建
+- 现在的 metadata 更像“原始索引”，还不是“清洗过的知识目录”
+- 评测上先靠人工主观判断，不急着回到 Ragas
 
-- `python agent_replace_rag.py --pdf-dir ./papers`
+## 下一步优先级
 
-## 学习路线（持续更新）
+1. **把 Agentic RAG 主链路跑稳**
+   - metadata 召回 → 正文阅读 → 证据整合 → 最终回答
+2. **补一个真正的 metadata 重建脚本**
+   - 让目录能从 PDF / PPT / 图片源文件重新生成
+3. **扩展到图片**
+   - OCR / 图像理解 / 多模态读取
+4. **做主观对比模板**
+   - 统一问题集，比较经典 RAG 和 Agentic RAG 的差异
 
-- [ ] 单 Agent 最小闭环（Plan → Act → Observe）
-- [ ] 工具调用协议标准化（JSON schema）
-- [ ] 多 Agent 协作策略优化（任务拆解与路由）
-- [ ] 引入记忆机制（短期/长期）
-- [ ] 增加评估基准与回归测试
-- [ ] 故障诊断与自修复机制
-- [ ] 成本/时延优化
+## 学习路线
 
-## 当前进度（2026-03-14）
+- [ ] 跑通经典 RAG 与 Agentic RAG 的同题对比
+- [ ] 建立清晰的 metadata 重建流程
+- [ ] 支持更多文档类型：PDF / PPT / 图片
+- [ ] 做人工主观评测表
+- [ ] 再决定是否重新引入 Ragas 做量化评测
 
-- ✅ 已完成一个 `Manager + 4 Workers` 的多 Agent 基础框架（LangGraph 编排）
-- ✅ 已跑通基础工具链路：读文件 / 写文件 / 编辑文件 / 执行命令
-- ✅ 已开始沉淀资料：新增 Anthropic《Building Effective AI Agents》
-- ✅ 明确区分：`工具增强 LLM` ≠ `完整 Agent`（关键差异是自主决策循环与状态管理）
-- ✅ 梳理 AutoGen 组件关系：`autogen-agentchat`（框架核心） + `autogen-ext`（模型/MCP扩展） + `autogenstudio`（可选 GUI）
-- ✅ 确认技术路线：优先从 AutoGen 最小单 Agent 闭环入手，再逐步接入高德 MCP
-- ✅ 明确模型接入策略：可使用 OpenAI-compatible 方式接 NVIDIA API，不强依赖 OpenAI 官方 API
-- ✅ 文献学习进度：`papers/LLM-Agent.pdf` 已学习至第 3 章
-- 🔄 下一步将围绕开源项目 `AutoGen` 做对照实践，重点关注：
-   - 可观测（日志、追踪、指标）
-   - 可控制（权限边界、策略约束、人工干预）
-   - 鲁棒性（重试、回退、异常恢复）
-   - 工业落地（评估、测试、部署、成本治理）
+## 运行入口
 
-详细任务见 [TODO.md](TODO.md)。
+### Agentic RAG
 
-## 学习日记
+```bash
+python replace_rag/agentic_rag.py
+```
 
-- [2026-03-17 学习记录](LEARNING_LOG_2026-03-17.md)
+### 经典 RAG 基线
 
-## 本地智慧问答系统计划（Gradio + Milvus + 本地 LLM）
-
-基于当前进展，下一阶段按“最小可用闭环”推进：
-
-1. **前端交互（Gradio）**
-   - 提供单轮问答输入框与答案展示区。
-   - 展示检索证据片段与来源（如文件名/切片序号）。
-
-2. **检索层（Milvus）**
-   - 使用已验证可连通的 Milvus 服务（`121.37.90.146:19530`）。
-   - 默认集合：`kb_chunks`，向量维度：`1024`。
-   - 问题向量化后执行 top-k 检索，返回 `content` 作为证据上下文。
-
-3. **生成层（本地 LLM）**
-   - 使用 OpenAI-compatible 本地模型服务：
-     - `LOCAL_BASE_URL=http://121.37.90.146:55803/v1`
-     - `LOCAL_MODEL=qwen3-32b`
-   - 将“用户问题 + 检索证据”拼接后生成最终回答。
-
-4. **评估层（Ragas）**
-   - 先构建小规模测试集（手工 + 半自动）。
-   - 再执行自动评估，输出指标与结果表（CSV）。
-   - 指标优先：`faithfulness`、`context_precision`、`context_recall`（有 LLM 评委时）。
-
-5. **迭代目标**
-   - 第一步：先跑通单轮问答闭环（可用）。
-   - 第二步：补充可观测日志（检索命中、时延、失败原因）。
-   - 第三步：做回归评测与参数优化（top-k、prompt、模型参数）。
-
-6. **后续重点学习 TODO：优化 reranker**
-   - 把 reranker 作为后续深入 RAG 的核心切入点。
-   - 先理解“召回（recall）”与“重排（rerank）”的职责分工。
-   - 从简单规则版 rerank 过渡到模型版 rerank（如 `bge-reranker` / `cross-encoder`）。
-   - 重点比较：只增大 top-k vs 引入 reranker，哪种方式对最终回答质量提升更明显。
-   - 目标：围绕 reranker 逐步建立对检索质量优化、证据排序和 RAG 工程权衡的系统理解。
+```bash
+python evaluation/simple_milvus_rag_demo.py
+```
 
 ## 仓库愿景
 
-把这个仓库打造成一个可复用的 Agent 工程实践模板：
-
-- 能快速搭建 Agent 原型
-- 能稳定运行真实任务
-- 能持续迭代并定位修复问题
+把这个仓库打造成一个可以复用、可以对比、可以持续迭代的 Agentic RAG 实战模板。
 
 ---
 
-如果你也在学习 Agent，欢迎一起交流和迭代。
+如果你也在做 Agentic RAG，欢迎一起把它打磨成一个真正可用的系统。
